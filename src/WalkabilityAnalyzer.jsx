@@ -33,43 +33,39 @@ function pixelToLatlng(x, y, zoom, centerLat, centerLon, width, height) {
 
 // ── Generate isochrone approximation (concentric travel-time rings) ──
 function generateIsochrone(lat, lon, minutes, mode) {
-  // Approximate speeds in km/h
   const speeds = { walk: 4.5, bike: 15, drive: 35 };
   const speed = speeds[mode] || 4.5;
   const distKm = (speed * minutes) / 60;
 
-  // Generate an irregular polygon to simulate network-based isochrone
   const points = 48;
   const coords = [];
   const seed = lat * 1000 + lon * 100 + minutes;
 
   for (let i = 0; i < points; i++) {
     const angle = (2 * Math.PI * i) / points;
-    // Pseudo-random variation to make it look organic (seeded by position)
     const variation = 0.65 + 0.35 * Math.abs(Math.sin(seed + i * 2.7 + angle * 3.1));
     const d = distKm * variation;
     const dlat = (d / 111.32) * Math.cos(angle);
     const dlon = (d / (111.32 * Math.cos((lat * Math.PI) / 180))) * Math.sin(angle);
     coords.push({ lat: lat + dlat, lon: lon + dlon });
   }
-  coords.push(coords[0]); // close polygon
+  coords.push(coords[0]);
 
-  const areaSqKm = Math.PI * distKm * distKm * 0.72; // approximate with variation factor
+  const areaSqKm = Math.PI * distKm * distKm * 0.72;
   return { coords, areaSqKm };
 }
 
 // ── Generate sample POIs around a location ──
 function generatePOIs(lat, lon, radiusKm) {
   const categories = [
-    { key: "grocery", emoji: "🛒", label: "Grocery", color: "#3fb950", baseCount: 4 },
-    { key: "park", emoji: "🌳", label: "Park", color: "#58a6ff", baseCount: 5 },
-    { key: "school", emoji: "🏫", label: "School", color: "#d2a8ff", baseCount: 3 },
-    { key: "health", emoji: "🏥", label: "Health", color: "#f85149", baseCount: 2 },
-    { key: "cafe", emoji: "☕", label: "Café", color: "#e3b341", baseCount: 6 },
-    { key: "transit", emoji: "🚏", label: "Transit", color: "#79c0ff", baseCount: 8 },
+    { key: "grocery", emoji: "\u{1F6D2}", label: "Grocery", color: "#3fb950", baseCount: 4 },
+    { key: "park", emoji: "\u{1F333}", label: "Park", color: "#58a6ff", baseCount: 5 },
+    { key: "school", emoji: "\u{1F3EB}", label: "School", color: "#d2a8ff", baseCount: 3 },
+    { key: "health", emoji: "\u{1F3E5}", label: "Health", color: "#f85149", baseCount: 2 },
+    { key: "cafe", emoji: "\u2615", label: "Caf\u00e9", color: "#e3b341", baseCount: 6 },
+    { key: "transit", emoji: "\u{1F68F}", label: "Transit", color: "#79c0ff", baseCount: 8 },
   ];
 
-  // Pasadena-area real landmarks (approximate positions)
   const realPlaces = [
     { lat: 34.1478, lon: -118.1445, name: "Trader Joe's", key: "grocery" },
     { lat: 34.1435, lon: -118.1503, name: "Whole Foods", key: "grocery" },
@@ -90,19 +86,18 @@ function generatePOIs(lat, lon, radiusKm) {
     { lat: 34.1455, lon: -118.1438, name: "Intelligentsia Coffee", key: "cafe" },
     { lat: 34.1480, lon: -118.1470, name: "Jones Coffee Roasters", key: "cafe" },
     { lat: 34.1440, lon: -118.1510, name: "Philz Coffee", key: "cafe" },
-    { lat: 34.1430, lon: -118.1395, name: "Café de Leche", key: "cafe" },
+    { lat: 34.1430, lon: -118.1395, name: "Caf\u00e9 de Leche", key: "cafe" },
     { lat: 34.1495, lon: -118.1555, name: "Jameson Brown", key: "cafe" },
     { lat: 34.1419, lon: -118.1484, name: "Memorial Park Station", key: "transit" },
     { lat: 34.1458, lon: -118.1379, name: "Lake Ave Station", key: "transit" },
     { lat: 34.1478, lon: -118.1544, name: "Del Mar Station", key: "transit" },
     { lat: 34.1360, lon: -118.1233, name: "Allen Station", key: "transit" },
     { lat: 34.1499, lon: -118.1604, name: "Fillmore Station", key: "transit" },
-    { lat: 34.1502, lon: -118.1420, name: "Bus Stop - Colorado Blvd", key: "transit" },
+    { lat: 34.1502, lon: -118.1420, name: "Bus Stop - Colorado", key: "transit" },
     { lat: 34.1430, lon: -118.1360, name: "Bus Stop - Lake & Del Mar", key: "transit" },
     { lat: 34.1390, lon: -118.1470, name: "Bus Stop - Fair Oaks", key: "transit" },
   ];
 
-  // Filter to within radius
   const filtered = realPlaces.filter((p) => {
     const dlat = p.lat - lat;
     const dlon = (p.lon - lon) * Math.cos((lat * Math.PI) / 180);
@@ -125,6 +120,13 @@ function computeScore(pois) {
   return Math.round(score);
 }
 
+// ── Score color ──
+function scoreColor(score) {
+  if (score >= 70) return "#3fb950";
+  if (score >= 40) return "#e3b341";
+  return "#f85149";
+}
+
 // ── Color configs ──
 const modeThemes = {
   walk:  { accent: "#3fb950", fill: "rgba(63,185,80,0.12)",  stroke: "rgba(63,185,80,0.5)" },
@@ -133,13 +135,30 @@ const modeThemes = {
 };
 
 const categoryMeta = {
-  grocery: { emoji: "🛒", label: "Grocery", color: "#3fb950" },
-  park:    { emoji: "🌳", label: "Park",    color: "#58a6ff" },
-  school:  { emoji: "🏫", label: "School",  color: "#d2a8ff" },
-  health:  { emoji: "🏥", label: "Health",  color: "#f85149" },
-  cafe:    { emoji: "☕", label: "Café",    color: "#e3b341" },
-  transit: { emoji: "🚏", label: "Transit", color: "#79c0ff" },
+  grocery: { emoji: "\u{1F6D2}", label: "Grocery", color: "#3fb950" },
+  park:    { emoji: "\u{1F333}", label: "Park",    color: "#58a6ff" },
+  school:  { emoji: "\u{1F3EB}", label: "School",  color: "#d2a8ff" },
+  health:  { emoji: "\u{1F3E5}", label: "Health",  color: "#f85149" },
+  cafe:    { emoji: "\u2615",    label: "Caf\u00e9",    color: "#e3b341" },
+  transit: { emoji: "\u{1F68F}", label: "Transit", color: "#79c0ff" },
 };
+
+// ── Run analysis (extracted so it can be called from multiple places) ──
+function runAnalysis(pin, time, mode) {
+  if (!pin) return null;
+  const isoData = generateIsochrone(pin.lat, pin.lon, time, mode);
+  const speeds = { walk: 4.5, bike: 15, drive: 35 };
+  const radiusKm = (speeds[mode] * time) / 60;
+  const { pois: foundPois } = generatePOIs(pin.lat, pin.lon, radiusKm);
+  const score = computeScore(foundPois);
+  const counts = {};
+  foundPois.forEach((p) => { counts[p.key] = (counts[p.key] || 0) + 1; });
+  return {
+    iso: isoData,
+    pois: foundPois,
+    stats: { area: isoData.areaSqKm.toFixed(1), total: foundPois.length, score, counts },
+  };
+}
 
 // ── Main Component ──
 export default function WalkabilityAnalyzer() {
@@ -156,10 +175,50 @@ export default function WalkabilityAnalyzer() {
   const [centerStart, setCenterStart] = useState(null);
   const [hoveredPoi, setHoveredPoi] = useState(null);
   const [showHint, setShowHint] = useState(true);
+  const [hasAnalyzed, setHasAnalyzed] = useState(false);
+  const [mapSize, setMapSize] = useState({ w: 900, h: 600 });
 
   const mapRef = useRef(null);
-  const W = 900;
-  const H = 600;
+  const containerRef = useRef(null);
+
+  // ── Responsive sizing ──
+  useEffect(() => {
+    function updateSize() {
+      if (!containerRef.current) return;
+      const w = containerRef.current.clientWidth;
+      const h = Math.max(350, Math.min(600, w * 0.65));
+      setMapSize({ w, h });
+    }
+    updateSize();
+    window.addEventListener("resize", updateSize);
+    return () => window.removeEventListener("resize", updateSize);
+  }, []);
+
+  const W = mapSize.w;
+  const H = mapSize.h;
+
+  // ── Non-passive wheel handler (FIX: React onWheel is passive, can't preventDefault) ──
+  useEffect(() => {
+    const el = mapRef.current;
+    if (!el) return;
+    const handler = (e) => {
+      e.preventDefault();
+      setZoom((z) => Math.max(11, Math.min(17, z + (e.deltaY < 0 ? 1 : -1))));
+    };
+    el.addEventListener("wheel", handler, { passive: false });
+    return () => el.removeEventListener("wheel", handler);
+  }, []);
+
+  // ── Auto re-analyze when mode/time changes (FIX: stale results) ──
+  useEffect(() => {
+    if (!hasAnalyzed || !pin) return;
+    const result = runAnalysis(pin, time, mode);
+    if (result) {
+      setIso(result.iso);
+      setPois(result.pois);
+      setStats(result.stats);
+    }
+  }, [mode, time]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Tile rendering ──
   const getTiles = useCallback(() => {
@@ -188,14 +247,15 @@ export default function WalkabilityAnalyzer() {
       }
     }
     return tiles;
-  }, [center, zoom]);
+  }, [center, zoom, W, H]);
 
-  const toPixel = useCallback((lat, lon) => latlngToPixel(lat, lon, zoom, center.lat, center.lon, W, H), [center, zoom]);
-  const toLatLng = useCallback((x, y) => pixelToLatlng(x, y, zoom, center.lat, center.lon, W, H), [center, zoom]);
+  const toPixel = useCallback((lat, lon) => latlngToPixel(lat, lon, zoom, center.lat, center.lon, W, H), [center, zoom, W, H]);
+  const toLatLng = useCallback((x, y) => pixelToLatlng(x, y, zoom, center.lat, center.lon, W, H), [center, zoom, W, H]);
 
   // ── Map interactions ──
   const handleMouseDown = (e) => {
-    const rect = mapRef.current.getBoundingClientRect();
+    // FIX: ignore if the click originated on a button (zoom controls)
+    if (e.target.closest("button")) return;
     setDragging(true);
     setDragStart({ x: e.clientX, y: e.clientY });
     setCenterStart({ ...center });
@@ -210,20 +270,28 @@ export default function WalkabilityAnalyzer() {
   };
 
   const handleMouseUp = (e) => {
+    if (e.target.closest("button")) {
+      // Click was on a zoom button — don't place a pin
+      setDragging(false);
+      setDragStart(null);
+      setCenterStart(null);
+      return;
+    }
     if (dragging && dragStart) {
       const dx = Math.abs(e.clientX - dragStart.x);
       const dy = Math.abs(e.clientY - dragStart.y);
       if (dx < 4 && dy < 4) {
-        // It's a click, not a drag
         const rect = mapRef.current.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
         const ll = toLatLng(x, y);
         setPin({ lat: ll.lat, lon: ll.lon });
         setShowHint(false);
+        // Clear stale results when dropping a new pin
         setIso(null);
         setPois([]);
         setStats(null);
+        setHasAnalyzed(false);
       }
     }
     setDragging(false);
@@ -231,26 +299,15 @@ export default function WalkabilityAnalyzer() {
     setCenterStart(null);
   };
 
-  const handleWheel = (e) => {
-    e.preventDefault();
-    setZoom((z) => Math.max(11, Math.min(17, z + (e.deltaY < 0 ? 1 : -1))));
-  };
-
   // ── Analyze ──
   const analyze = () => {
-    if (!pin) return;
-    const isoData = generateIsochrone(pin.lat, pin.lon, time, mode);
-    setIso(isoData);
-
-    const speeds = { walk: 4.5, bike: 15, drive: 35 };
-    const radiusKm = (speeds[mode] * time) / 60;
-    const { pois: foundPois } = generatePOIs(pin.lat, pin.lon, radiusKm);
-    setPois(foundPois);
-
-    const score = computeScore(foundPois);
-    const counts = {};
-    foundPois.forEach((p) => { counts[p.key] = (counts[p.key] || 0) + 1; });
-    setStats({ area: isoData.areaSqKm.toFixed(1), total: foundPois.length, score, counts });
+    const result = runAnalysis(pin, time, mode);
+    if (result) {
+      setIso(result.iso);
+      setPois(result.pois);
+      setStats(result.stats);
+      setHasAnalyzed(true);
+    }
   };
 
   const theme = modeThemes[mode];
@@ -268,11 +325,24 @@ export default function WalkabilityAnalyzer() {
   }
 
   return (
-    <div style={{
-      width: "100%", maxWidth: W, margin: "0 auto", fontFamily: "'DM Sans', system-ui, sans-serif",
+    <div ref={containerRef} style={{
+      width: "100%", maxWidth: 900, margin: "0 auto", fontFamily: "'DM Sans', system-ui, sans-serif",
       background: "#0d1117", borderRadius: 12, overflow: "hidden", border: "1px solid #30363d",
       position: "relative",
     }}>
+      {/* Header with location context */}
+      <div style={{
+        padding: "10px 16px", borderBottom: "1px solid #30363d",
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+      }}>
+        <div style={{ fontSize: 13, color: "#e6edf3", fontWeight: 500 }}>
+          Pasadena, CA
+        </div>
+        <div style={{ fontSize: 11, color: "#8b949e", fontFamily: "'Space Mono', monospace" }}>
+          zoom {zoom}
+        </div>
+      </div>
+
       {/* Map */}
       <div
         ref={mapRef}
@@ -280,8 +350,7 @@ export default function WalkabilityAnalyzer() {
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onMouseLeave={() => { setDragging(false); }}
-        onWheel={handleWheel}
+        onMouseLeave={() => { setDragging(false); setDragStart(null); setCenterStart(null); }}
       >
         <svg width="100%" height="100%" viewBox={`0 0 ${W} ${H}`} style={{ position: "absolute", top: 0, left: 0 }}>
           {/* Tiles */}
@@ -300,6 +369,8 @@ export default function WalkabilityAnalyzer() {
             const px = toPixel(p.lat, p.lon);
             const cat = categoryMeta[p.key];
             const isHovered = hoveredPoi === i;
+            // FIX: Dynamic tooltip width based on name length
+            const tooltipW = Math.max(90, Math.min(180, p.name.length * 7.5 + 20));
             return (
               <g key={i}
                 onMouseEnter={() => setHoveredPoi(i)}
@@ -314,7 +385,7 @@ export default function WalkabilityAnalyzer() {
                 </text>
                 {isHovered && (
                   <g>
-                    <rect x={px.x - 60} y={px.y - 36} width={120} height={24} rx={6}
+                    <rect x={px.x - tooltipW / 2} y={px.y - 36} width={tooltipW} height={24} rx={6}
                       fill="#161b22" stroke="#30363d" strokeWidth={1} />
                     <text x={px.x} y={px.y - 22} textAnchor="middle" fontSize={11}
                       fill="#e6edf3" fontFamily="system-ui" style={{ pointerEvents: "none" }}>
@@ -331,7 +402,7 @@ export default function WalkabilityAnalyzer() {
             const pp = toPixel(pin.lat, pin.lon);
             return (
               <g>
-                <circle cx={pp.x} cy={pp.y} r={18} fill="none" stroke="rgba(248,81,73,0.3)" strokeWidth={2}>
+                <circle cx={pp.x} cy={pp.y} r={10} fill="none" stroke="rgba(248,81,73,0.3)" strokeWidth={2}>
                   <animate attributeName="r" from="10" to="24" dur="2s" repeatCount="indefinite" />
                   <animate attributeName="opacity" from="1" to="0" dur="2s" repeatCount="indefinite" />
                 </circle>
@@ -350,7 +421,7 @@ export default function WalkabilityAnalyzer() {
             padding: "16px 24px", textAlign: "center", pointerEvents: "none",
             boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
           }}>
-            <div style={{ fontSize: 28, marginBottom: 4 }}>📍</div>
+            <div style={{ fontSize: 28, marginBottom: 4 }}>{"\u{1F4CD}"}</div>
             <div style={{ fontSize: 13, color: "#8b949e" }}>
               <strong style={{ color: "#e6edf3" }}>Click anywhere</strong> to drop a pin
             </div>
@@ -359,8 +430,9 @@ export default function WalkabilityAnalyzer() {
 
         {/* Zoom controls */}
         <div style={{ position: "absolute", top: 12, right: 12, display: "flex", flexDirection: "column", gap: 4 }}>
-          {["+", "−"].map((label, i) => (
+          {["+", "\u2212"].map((label, i) => (
             <button key={label} onClick={(e) => { e.stopPropagation(); setZoom(z => Math.max(11, Math.min(17, z + (i === 0 ? 1 : -1)))); }}
+              onMouseDown={(e) => e.stopPropagation()}
               style={{
                 width: 32, height: 32, border: "1px solid #30363d", borderRadius: 6,
                 background: "#161b22", color: "#e6edf3", fontSize: 18, cursor: "pointer",
@@ -383,9 +455,9 @@ export default function WalkabilityAnalyzer() {
             </div>
             <div style={{ display: "flex", gap: 4 }}>
               {[
-                { key: "walk", emoji: "🚶", label: "Walk" },
-                { key: "bike", emoji: "🚲", label: "Bike" },
-                { key: "drive", emoji: "🚗", label: "Drive" },
+                { key: "walk", emoji: "\u{1F6B6}", label: "Walk" },
+                { key: "bike", emoji: "\u{1F6B2}", label: "Bike" },
+                { key: "drive", emoji: "\u{1F697}", label: "Drive" },
               ].map((m) => (
                 <button key={m.key} onClick={() => setMode(m.key)}
                   style={{
@@ -432,12 +504,11 @@ export default function WalkabilityAnalyzer() {
                 fontFamily: "'Space Mono', monospace", fontSize: 13, fontWeight: 700,
                 cursor: pin ? "pointer" : "not-allowed", letterSpacing: 0.5,
                 transition: "all 0.15s ease",
-                transform: pin ? "none" : "none",
               }}
               onMouseEnter={(e) => { if (pin) e.target.style.filter = "brightness(1.15)"; }}
               onMouseLeave={(e) => { e.target.style.filter = "none"; }}
             >
-              Analyze
+              {hasAnalyzed ? "Re-analyze" : "Analyze"}
             </button>
           </div>
         </div>
@@ -445,7 +516,12 @@ export default function WalkabilityAnalyzer() {
         {/* Pin coordinates */}
         {pin && (
           <div style={{ marginTop: 10, fontSize: 11, color: "#8b949e", fontFamily: "'Space Mono', monospace" }}>
-            📍 {pin.lat.toFixed(4)}, {pin.lon.toFixed(4)}
+            {"\u{1F4CD}"} {pin.lat.toFixed(4)}, {pin.lon.toFixed(4)}
+            {!hasAnalyzed && (
+              <span style={{ color: theme.accent, marginLeft: 8 }}>
+                {"\u2190"} click Analyze
+              </span>
+            )}
           </div>
         )}
 
@@ -458,12 +534,12 @@ export default function WalkabilityAnalyzer() {
               border: "1px solid #30363d", borderRadius: 10,
             }}>
               {[
-                { value: stats.area, label: "km²" },
-                { value: stats.total, label: "places" },
-                { value: `${stats.score}/100`, label: "score" },
+                { value: stats.area, label: "km\u00B2", color: theme.accent },
+                { value: stats.total, label: "places", color: theme.accent },
+                { value: `${stats.score}/100`, label: "score", color: scoreColor(stats.score) },
               ].map((s) => (
                 <div key={s.label} style={{ textAlign: "center" }}>
-                  <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 20, fontWeight: 700, color: theme.accent }}>
+                  <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 20, fontWeight: 700, color: s.color }}>
                     {s.value}
                   </div>
                   <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1, color: "#8b949e", marginTop: 2 }}>
