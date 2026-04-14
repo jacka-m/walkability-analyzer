@@ -31,28 +31,14 @@ function pixelToLatlng(x, y, zoom, centerLat, centerLon, width, height) {
   return { lat: tileToLat(tileY, zoom), lon: tileToLon(tileX, zoom) };
 }
 
-// ── Generate isochrone approximation (concentric travel-time rings) ──
-function generateIsochrone(lat, lon, minutes, mode) {
+// ── Generate isochrone (perfect circle radius) ──
+function generateIsochrone(minutes, mode) {
   const speeds = { walk: 4.5, bike: 15, drive: 35 };
   const speed = speeds[mode] || 4.5;
-  const distKm = (speed * minutes) / 60;
-
-  const points = 48;
-  const coords = [];
-  const seed = lat * 1000 + lon * 100 + minutes;
-
-  for (let i = 0; i < points; i++) {
-    const angle = (2 * Math.PI * i) / points;
-    const variation = 0.65 + 0.35 * Math.abs(Math.sin(seed + i * 2.7 + angle * 3.1));
-    const d = distKm * variation;
-    const dlat = (d / 111.32) * Math.cos(angle);
-    const dlon = (d / (111.32 * Math.cos((lat * Math.PI) / 180))) * Math.sin(angle);
-    coords.push({ lat: lat + dlat, lon: lon + dlon });
-  }
-  coords.push(coords[0]);
-
-  const areaSqKm = Math.PI * distKm * distKm * 0.72;
-  return { coords, areaSqKm };
+  const radiusKm = (speed * minutes) / 60;
+  const areaSqKm = Math.PI * radiusKm * radiusKm;
+  const areaSqMi = areaSqKm * 0.386102;
+  return { radiusKm, areaSqMi };
 }
 
 // ── Generate sample POIs around a location ──
@@ -146,17 +132,15 @@ const categoryMeta = {
 // ── Run analysis (extracted so it can be called from multiple places) ──
 function runAnalysis(pin, time, mode) {
   if (!pin) return null;
-  const isoData = generateIsochrone(pin.lat, pin.lon, time, mode);
-  const speeds = { walk: 4.5, bike: 15, drive: 35 };
-  const radiusKm = (speeds[mode] * time) / 60;
-  const { pois: foundPois } = generatePOIs(pin.lat, pin.lon, radiusKm);
+  const isoData = generateIsochrone(time, mode);
+  const { pois: foundPois } = generatePOIs(pin.lat, pin.lon, isoData.radiusKm);
   const score = computeScore(foundPois);
   const counts = {};
   foundPois.forEach((p) => { counts[p.key] = (counts[p.key] || 0) + 1; });
   return {
     iso: isoData,
     pois: foundPois,
-    stats: { area: isoData.areaSqKm.toFixed(1), total: foundPois.length, score, counts },
+    stats: { area: isoData.areaSqMi.toFixed(1), total: foundPois.length, score, counts },
   };
 }
 
@@ -313,17 +297,6 @@ export default function WalkabilityAnalyzer() {
   const theme = modeThemes[mode];
   const tiles = getTiles();
 
-  // ── ISO polygon path ──
-  let isoPath = "";
-  if (iso) {
-    isoPath = iso.coords
-      .map((c, i) => {
-        const p = toPixel(c.lat, c.lon);
-        return `${i === 0 ? "M" : "L"}${p.x},${p.y}`;
-      })
-      .join(" ") + " Z";
-  }
-
   return (
     <div ref={containerRef} style={{
       width: "100%", maxWidth: 900, margin: "0 auto", fontFamily: "'DM Sans', system-ui, sans-serif",
@@ -358,11 +331,17 @@ export default function WalkabilityAnalyzer() {
             <image key={t.key} href={t.url} x={t.x} y={t.y} width={256} height={256} style={{ imageRendering: "auto" }} />
           ))}
 
-          {/* Isochrone polygon */}
-          {iso && (
-            <path d={isoPath} fill={theme.fill} stroke={theme.stroke} strokeWidth={2.5}
-              style={{ filter: `drop-shadow(0 0 12px ${theme.stroke})` }} />
-          )}
+          {/* Isochrone circle */}
+          {iso && pin && (() => {
+            const pp = toPixel(pin.lat, pin.lon);
+            const edge = toPixel(pin.lat + iso.radiusKm / 111.32, pin.lon);
+            const rPx = Math.abs(edge.y - pp.y);
+            return (
+              <circle cx={pp.x} cy={pp.y} r={rPx}
+                fill={theme.fill} stroke={theme.stroke} strokeWidth={2.5}
+                style={{ filter: `drop-shadow(0 0 12px ${theme.stroke})` }} />
+            );
+          })()}
 
           {/* POI dots */}
           {pois.map((p, i) => {
@@ -534,7 +513,7 @@ export default function WalkabilityAnalyzer() {
               border: "1px solid #30363d", borderRadius: 10,
             }}>
               {[
-                { value: stats.area, label: "km\u00B2", color: theme.accent },
+                { value: stats.area, label: "mi\u00B2", color: theme.accent },
                 { value: stats.total, label: "places", color: theme.accent },
                 { value: `${stats.score}/100`, label: "score", color: scoreColor(stats.score) },
               ].map((s) => (
